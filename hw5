@@ -1,0 +1,315 @@
+#===================================================================================
+#                        Homework Week 5 - Emmy Pahmer
+#===================================================================================
+print('===========================================================================================================')
+print('===========================================================================================================')
+print("> start of program")
+
+#-----------------------------------------------------------------------------------------------
+# to call, examples:
+# python hw5.py wdbc.data -f2 wdbc-cheat.names
+# python hw5.py breast-cancer-wisconsin.data -f2  breast-cancer-wisconsin-cheat.names
+# python hw5.py wine.data -f2 wine-cheat.names
+# python hw5.py wpbc.data -f2 wpbc-cheat.names
+# python hw5.py diabetes.data                           
+# python hw5.py housing.data -f2 housing-cheat.names    
+
+# Filenames: if the names exist, provide both the data and the names, otherwise just the 
+# data file name. eg.
+# filenames = ["<path>/something.data", "<path>/something.names"]
+# or
+# filenames = ["<path>/something.data"]		     
+
+# For NAMES, I manually created files with just the column names ("cheat" in filename).  ​This is a  
+# workaround but I also think that in a real-world situation, this would make a lot more sense than 
+# trying to parse each NAMES file if every one is structured differently.  
+
+# path of all source data
+print('> define path to source data')
+from pathlib import Path
+data_path = Path("C:/Users/evp00/OneDrive/Desktop/homework/wk5/data/")
+
+print('> import libraries: re, argparse, sys, path, csv')
+# get lib for reg ex
+import re         # eg  re.split(r'[ ,|;"]+', l)
+# get lib for command-line arguments
+import argparse
+# get lib to stop program, for debugging
+import sys
+# gt lib to check if file exists
+import os.path
+# automated parsing
+import csv
+# plotting
+import matplotlib.pyplot as plt
+# to do automatic conversions when reading csv
+import pandas
+# for plotting and counting freq
+import numpy as np
+from collections import Counter
+
+print("> define CONVERT_TYPE function")
+def convert_type(element):
+    # Case 2: is an emptry str, should be ignored
+    if element == "": # len(element) == 0
+        return None
+    # Case 4: is a # with no ., should be int
+    try:
+        return int(element)
+    except ValueError:
+        # Case 3: has a . but is a #, should be float
+        try:
+            return float(element)
+        except ValueError:
+            # Case 1: is a string, should remain a string
+            return element
+
+print("> define CHECK_FILES function")
+def check_files(sourcefile1, sourcefile2):
+    print('> executing check_files function')
+    
+     # check if files exist
+    if os.path.exists(data_path/sourcefile1) == False:
+        print('Source data file does not exist, aborting.')
+        exit()
+
+    if sourcefile2 != None and os.path.exists(data_path/sourcefile2) == False:
+        print('Names file, 2nd argument, does not exist, aborting.')
+        exit()
+
+print("> define GET_DELIM function")
+def get_delim(sourcefile1):
+    print('> executing get_delim function')
+    data = open(data_path/sourcefile1, 'r') 
+    my_read_data = data.read()
+    print(' ')
+    if my_read_data.find(',') > 0:
+        print('delimiter = comma')
+        return ','
+    else:
+        print('delimiter = space')
+        return ' '    #  r"\s+"  for one or more spaces?   
+    print(' ')
+
+print("> define READ_DATA function")
+def read_parse(sourcefile1, sourcefile2):
+    print('> executing read_data function. Parameters: sourcefile1=', sourcefile1, ' sourcefile2=', sourcefile2)
+
+    if sourcefile2 == None:             
+        filenames = [data_path/sourcefile1] 
+    else:
+        filenames = [data_path/sourcefile1, data_path/sourcefile2]
+
+    #print('filenames: ',filenames)
+
+    nfiles = len(filenames)
+    if nfiles > 1:
+        data = open(filenames[0], 'r')
+        names = open(filenames[1], 'r')
+    else:
+        data = open(filenames[0], 'r')
+        names = None
+
+    print(' ')
+    print('number of files: ', nfiles)
+    print('data: ', data)
+    print('names: ', names)
+    print(' ')
+    print('> read data')
+    my_read_data = data.read()
+
+    print('> split data into lines')
+    my_read_data1 = my_read_data.split('\n')
+    #print('after splitting lines: ', my_read_data1[0:5])
+    #print(' ')
+
+    # if there is names data, read it
+    if nfiles > 1:
+        print('> reading names info')
+        my_read_names = names.read()
+        my_read_names = my_read_names.rstrip()  #remove trailing /n
+        #print('my_read_names: ', my_read_names)
+
+    print('> create list of lists with modified types')
+    outer_list = []
+
+    names_list = []
+    #if there are column names, read them in and add them as the first row of the outer list
+    if nfiles > 1:                                          
+        print('> getting column headers from NAMES file')
+        names_list = my_read_names.split(',')
+        #print('names_list: ', names_list)
+        outer_list += [names_list]
+
+    # print(' ')
+    # print('outer_list after reading names file: ', outer_list)
+    # print(' ')
+
+    print('> read in rows of data, convert type if appropriate')
+    for row in my_read_data1: #  my_read_data1[0:5] for reading subset. 
+        #print('row: ', row)
+        row_list = []
+        row_list = re.split(r'[ ,|;"]+', row) 
+        #print('row_list: ', row_list)
+        row_list_modified = []
+        for element in row_list:
+            new_element = convert_type(element)
+            if new_element is not None:
+                row_list_modified.append(new_element)
+            #print('element: ', element, 'new_element: ', new_element, 'type of new: ', type(new_element))
+
+        #print('row_list_modified: ', row_list_modified)
+        if len(row_list_modified) > 0:
+            outer_list += [row_list_modified]
+
+    #print(' ')
+    #print('outer_list (sample): ', outer_list[0:4])
+    #print(' ')
+    return outer_list
+
+
+print('> define CREATE_DICTIONARY function')
+def create_dictionary(outer_list):
+    print('> executing create_dictionary')
+    my_dictionary = {}
+    # We know: our first row (i.e. outer_list[0]) contains our column headings. We want these headings 
+    # to be our dictionary keys.
+
+    #loop through columns
+    for location, column_headings in enumerate(outer_list[0]):
+        #print(column_headings)
+        my_dictionary[column_headings] = list()  # equiv. to []
+        #for each column, loop through the rest of the rows 
+        for row in outer_list[1:]: 
+            my_dictionary[column_headings] += [row[location]] # Add data values to the corresponding columns
+        
+    #print('my_dictionary: ', my_dictionary])
+    # print('> end of read_data function ')
+    return my_dictionary
+
+print('> define READ_CSV function')
+def read_csv(sf):  
+    print('> executing read_csv function') 
+    csv_data2 = [] 
+    # with open(data_path/sf, 'rb') as csvfile:
+    #     dialect = csv.Sniffer().sniff(csvfile.read(1024))  # use sniffer to determine delimiter
+    #     csvfile.seek(0)                                    # TypeError: cannot use a string pattern on a bytes-like object
+    #     csv_data1 = csv.reader(csvfile, dialect)
+
+    # NEED TO REPLACE MULTIPLE SPACES WITH ONE OR MAKE DELIM TREAT MULTIPLE SPACES AS ONE
+    # similar example:
+    # with (open("example", "r") as csv_file:
+    #       open("new_example.csv", "w") as new_file):
+    #           for line in csv_file:
+    #               new_file.write(line.replace('   ', '\t'))
+
+    with open(data_path/sf) as csvfile:           
+        csv_data1 = csv.reader(csvfile, delimiter= dlm, skipinitialspace=True)  # When True, whitespace immediately following 
+        # print(type(csv_data1))                                                # the delimiter is ignored
+        csv_data2 = list(csv_data1)      # turn it into a list
+        csvfile.close()
+
+    # all str so need to convert.  Use convert_type function
+    outer_list=[]
+    for row in csv_data2: 
+        row_modified=[]
+        for element in row:
+            #print('1: ', element, type(element))
+            new_element = convert_type(element)
+            #print('2: ', new_element, type(new_element))  # this is working but it's not output!!????
+            row_modified.append(new_element)
+        outer_list.append(row_modified)
+
+    return outer_list
+
+print('> define COMPARISON function')
+def comparison(my_data, csv_data):
+    print('> executing comparison function')
+    print('> read source file again, just data part')
+    my_data2 = read_parse(sourcefile1, None)
+
+    print(' ')
+    print('Samples of my_data2 (data file only)')
+    print(my_data2[0:2])
+    print('type of my_data2: ' , type(my_data2))
+
+    # compare whole list
+    print(' ')
+    print('> compare whole list')
+    if my_data2 == csv_data:
+        print('>>>>>>>>>>>>> MY_DATA2 AND CSV_DATA ARE THE SAME <<<<<<<<<<<<<<<<<<<<<<<<<')
+    else:
+        print('>>>>>>>>>>>>> MY_DATA2 AND CSV_DATA ARE DIFFERENT <<<<<<<<<<<<<<<<<<<<<<<<<')
+        # loop through each column of first row and compare types
+        print(' ')
+        print('> compare types')
+        print(' ')
+        print('--------------- my_data2 ---------------')
+        for pos, col in enumerate(my_data2[0]):
+            print('pos:', pos, ' value:', col, ' type:', type(col))
+            mtype = str(type(col))
+        print(' ')
+        print('---------------- csv_data ---------------')
+        for pos, col in enumerate(csv_data[0]):
+            print('pos:', pos, ' value:', col, ' type:', type(col))
+            ctype = str(type(col))
+        # how to iterate through both at the same time? Need itertools?
+    print(' ')
+
+# get file names via command-line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("fn1", type=str, help="data filename")
+parser.add_argument("--fn2","-f2", type=str, help="column header filename") # optional, dash at beginning 
+
+arguments = parser.parse_args()
+sourcefile1 = arguments.fn1
+sourcefile2 = arguments.fn2
+
+check_files(sourcefile1, sourcefile2)
+dlm = get_delim(sourcefile1)
+my_data = read_parse(sourcefile1,sourcefile2)
+my_dictionary= create_dictionary(my_data)
+csv_data = read_csv(sourcefile1)
+
+#-----------------------------------------------------------------------------------------
+print(' ')
+print('Samples of my_data (original)')
+print(my_data[0:2])
+print('type of my_data: ' , type(my_data))
+
+print(' ')
+print('Samples of csv_data')
+print(csv_data[0:2])
+print('type of csv_data: ', type(csv_data))
+print(' ')
+#-----------------------------------------------------------------------------------------
+
+comparison(my_data, csv_data)
+
+# =========================================================================================
+print('> plotting graphs')
+# Use dictionaries because they contain the column names
+# get data in a usable format   varname1 = list of values
+ditems = dict.items(my_dictionary)
+# loop though each key/value pair
+for key, value in ditems:
+    #print('type of first value:', type(value[0]))
+    x = value[1]
+    if isinstance(x, (int, float, complex)):
+        plt.plot(value)
+        plt.title(key)
+        plt.savefig(key + '.png')  # have to put this before plt.show 
+        plt.show()
+    elif isinstance(x, (str)):
+        labels, values = zip(*Counter(value).items())
+        indexes = np.arange(len(labels))
+        width = 1
+        plt.bar(indexes, values, width)
+        plt.xticks(indexes + width * 0.5, labels)
+        plt.title(key)
+        plt.savefig(key + '.png')
+        plt.show()
+
+print('> end of program')
+
+
